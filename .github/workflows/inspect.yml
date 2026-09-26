@@ -1,4 +1,4 @@
-name: Inspect Repo
+name: Inspect LHM
 
 on:
   workflow_dispatch:
@@ -8,34 +8,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Clone LHM into runner
+        run: |
+          git clone --depth 1 https://github.com/aigc3d/LHM.git /tmp/LHM
 
       - name: Generate file tree with sizes
         run: |
           mkdir -p inspection
-          echo "=== REPO TREE (with file sizes) ===" > inspection/tree.txt
+          cd /tmp/LHM
+          echo "=== REPO TREE (with file sizes) ===" > /tmp/inspection/tree.txt
           find . -path ./.git -prune -o -type f -print | sort | while read f; do
             size=$(stat -c%s "$f" 2>/dev/null || echo 0)
             printf "%10d  %s\n" "$size" "$f"
-          done >> inspection/tree.txt
+          done >> /tmp/inspection/tree.txt
+        continue-on-error: false
 
       - name: Directory sizes
         run: |
-          echo "=== DIRECTORY SIZES ===" > inspection/dirs.txt
-          du -sh */ 2>/dev/null | sort -h >> inspection/dirs.txt
-          echo "" >> inspection/dirs.txt
-          echo "=== TOTAL ===" >> inspection/dirs.txt
-          du -sh . >> inspection/dirs.txt
+          cd /tmp/LHM
+          echo "=== DIRECTORY SIZES ===" > /tmp/inspection/dirs.txt
+          du -sh */ 2>/dev/null | sort -h >> /tmp/inspection/dirs.txt
+          echo "" >> /tmp/inspection/dirs.txt
+          echo "=== TOTAL ===" >> /tmp/inspection/dirs.txt
+          du -sh . >> /tmp/inspection/dirs.txt
+          cat /tmp/inspection/dirs.txt
 
       - name: Copy key files for review
         run: |
-          mkdir -p inspection/key_files
-          # Copy the critical inference files (if they exist)
+          mkdir -p /tmp/inspection/key_files
+          cd /tmp/LHM
           for f in \
             "LHM/launch.py" \
             "LHM/runners/infer/human_lrm.py" \
             "LHM/models/modeling_human_lrm.py" \
+            "LHM/models/encoders/sapiens_warpper.py" \
             "inference_mesh.sh" \
             "inference.sh" \
             "requirements.txt" \
@@ -43,34 +49,35 @@ jobs:
             "configs/inference/human-lrm-500M.yaml" \
           ; do
             if [ -f "$f" ]; then
-              # Flatten path so all files sit in one folder
               outname=$(echo "$f" | tr '/' '_')
-              cp "$f" "inspection/key_files/$outname"
-              echo "✅ Copied: $f → $outname"
+              cp "$f" "/tmp/inspection/key_files/$outname"
+              echo "✅ $f → $outname"
             else
               echo "❌ Missing: $f"
             fi
           done
 
-      - name: List top 30 largest files
+      - name: Top 30 largest files
         run: |
-          echo "=== TOP 30 LARGEST FILES ===" > inspection/largest.txt
+          cd /tmp/LHM
+          echo "=== TOP 30 LARGEST FILES ===" > /tmp/inspection/largest.txt
           find . -path ./.git -prune -o -type f -print | while read f; do
             size=$(stat -c%s "$f" 2>/dev/null || echo 0)
             printf "%10d  %s\n" "$size" "$f"
-          done | sort -rn | head -30 >> inspection/largest.txt
-          cat inspection/largest.txt
+          done | sort -rn | head -30 >> /tmp/inspection/largest.txt
+          cat /tmp/inspection/largest.txt
 
-      - name: Count files by type
+      - name: Count files by extension
         run: |
-          echo "=== FILE COUNT BY EXTENSION ===" > inspection/counts.txt
+          cd /tmp/LHM
+          echo "=== FILE COUNT BY EXTENSION ===" > /tmp/inspection/counts.txt
           find . -path ./.git -prune -o -type f -print | \
-            sed 's/.*\.//' | sort | uniq -c | sort -rn | head -20 >> inspection/counts.txt
-          cat inspection/counts.txt
+            grep -oE '\.[a-zA-Z0-9]+$' | sort | uniq -c | sort -rn | head -20 >> /tmp/inspection/counts.txt
+          cat /tmp/inspection/counts.txt
 
-      - name: Upload inspection report
+      - name: Upload inspection artifact
         uses: actions/upload-artifact@v4
         with:
           name: lhm-inspection
-          path: inspection/
+          path: /tmp/inspection/
           retention-days: 30
