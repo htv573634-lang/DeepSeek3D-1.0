@@ -1,0 +1,32 @@
+name: Print LHM Tree
+
+on:
+  workflow_dispatch:
+
+jobs:
+  print:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone LHM
+        run: git clone --depth 1 https://github.com/aigc3d/LHM.git /tmp/LHM
+
+      - name: Print full file tree
+        run: |
+          cd /tmp/LHM
+          echo "=== FULL FILE TREE ==="
+          find . -path ./.git -prune -o -type f -print | sort
+
+      - name: Print folder sizes
+        run: |
+          cd /tmp/LHM
+          echo "=== FOLDER SIZES ==="
+          du -sh */ 2>/dev/null | sort -h
+
+      - name: Print key file contents
+        run: |
+          cd /tmp/LHM
+          echo "=== LHM/launch.py ==="
+          cat LHM/launch.py
+          echo ""
+          echo "=== inference_mesh.sh ==="
+          cat inference_mesh.sh
