@@ -8,20 +8,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Create inspection folder
+        run: mkdir -p /tmp/inspection/key_files
+
       - name: Clone LHM into runner
-        run: |
-          git clone --depth 1 https://github.com/aigc3d/LHM.git /tmp/LHM
+        run: git clone --depth 1 https://github.com/aigc3d/LHM.git /tmp/LHM
 
       - name: Generate file tree with sizes
         run: |
-          mkdir -p inspection
           cd /tmp/LHM
           echo "=== REPO TREE (with file sizes) ===" > /tmp/inspection/tree.txt
           find . -path ./.git -prune -o -type f -print | sort | while read f; do
             size=$(stat -c%s "$f" 2>/dev/null || echo 0)
             printf "%10d  %s\n" "$size" "$f"
           done >> /tmp/inspection/tree.txt
-        continue-on-error: false
 
       - name: Directory sizes
         run: |
@@ -35,7 +35,6 @@ jobs:
 
       - name: Copy key files for review
         run: |
-          mkdir -p /tmp/inspection/key_files
           cd /tmp/LHM
           for f in \
             "LHM/launch.py" \
