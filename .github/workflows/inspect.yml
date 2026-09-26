@@ -1,0 +1,76 @@
+name: Inspect Repo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate file tree with sizes
+        run: |
+          mkdir -p inspection
+          echo "=== REPO TREE (with file sizes) ===" > inspection/tree.txt
+          find . -path ./.git -prune -o -type f -print | sort | while read f; do
+            size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+            printf "%10d  %s\n" "$size" "$f"
+          done >> inspection/tree.txt
+
+      - name: Directory sizes
+        run: |
+          echo "=== DIRECTORY SIZES ===" > inspection/dirs.txt
+          du -sh */ 2>/dev/null | sort -h >> inspection/dirs.txt
+          echo "" >> inspection/dirs.txt
+          echo "=== TOTAL ===" >> inspection/dirs.txt
+          du -sh . >> inspection/dirs.txt
+
+      - name: Copy key files for review
+        run: |
+          mkdir -p inspection/key_files
+          # Copy the critical inference files (if they exist)
+          for f in \
+            "LHM/launch.py" \
+            "LHM/runners/infer/human_lrm.py" \
+            "LHM/models/modeling_human_lrm.py" \
+            "inference_mesh.sh" \
+            "inference.sh" \
+            "requirements.txt" \
+            "README.md" \
+            "configs/inference/human-lrm-500M.yaml" \
+          ; do
+            if [ -f "$f" ]; then
+              # Flatten path so all files sit in one folder
+              outname=$(echo "$f" | tr '/' '_')
+              cp "$f" "inspection/key_files/$outname"
+              echo "✅ Copied: $f → $outname"
+            else
+              echo "❌ Missing: $f"
+            fi
+          done
+
+      - name: List top 30 largest files
+        run: |
+          echo "=== TOP 30 LARGEST FILES ===" > inspection/largest.txt
+          find . -path ./.git -prune -o -type f -print | while read f; do
+            size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+            printf "%10d  %s\n" "$size" "$f"
+          done | sort -rn | head -30 >> inspection/largest.txt
+          cat inspection/largest.txt
+
+      - name: Count files by type
+        run: |
+          echo "=== FILE COUNT BY EXTENSION ===" > inspection/counts.txt
+          find . -path ./.git -prune -o -type f -print | \
+            sed 's/.*\.//' | sort | uniq -c | sort -rn | head -20 >> inspection/counts.txt
+          cat inspection/counts.txt
+
+      - name: Upload inspection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lhm-inspection
+          path: inspection/
+          retention-days: 30
