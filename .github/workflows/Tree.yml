@@ -10,19 +10,41 @@ jobs:
       - name: Clone LHM
         run: git clone --depth 1 https://github.com/aigc3d/LHM.git /tmp/LHM
 
-      - name: Print full file tree
+      - name: Top-level structure
         run: |
           cd /tmp/LHM
-          echo "=== FULL FILE TREE ==="
-          find . -path ./.git -prune -o -type f -print | sort
+          echo "=== TOP-LEVEL FILES/FOLDERS ==="
+          ls -la
 
-      - name: Print folder sizes
+      - name: Two-level folder tree (folders only)
         run: |
           cd /tmp/LHM
-          echo "=== FOLDER SIZES ==="
-          du -sh */ 2>/dev/null | sort -h
+          echo "=== 2-LEVEL FOLDER TREE ==="
+          find . -maxdepth 2 -type d | grep -v '\.git' | sort
 
-      - name: Print key file contents
+      - name: File count per top-level folder
+        run: |
+          cd /tmp/LHM
+          echo "=== FILE COUNT PER TOP-LEVEL FOLDER ==="
+          for d in */ ; do
+            count=$(find "$d" -type f | wc -l)
+            size=$(du -sh "$d" | cut -f1)
+            printf "%6s files  %6s  %s\n" "$count" "$size" "$d"
+          done
+
+      - name: Files inside LHM/ folder
+        run: |
+          cd /tmp/LHM
+          echo "=== FILES UNDER LHM/ ==="
+          find LHM -type f | sort
+
+      - name: Files inside engine/ (top 2 levels only)
+        run: |
+          cd /tmp/LHM
+          echo "=== FILES UNDER engine/ (2 levels) ==="
+          find engine -maxdepth 2 -type f | sort
+
+      - name: Key file contents
         run: |
           cd /tmp/LHM
           echo "=== LHM/launch.py ==="
